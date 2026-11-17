@@ -1,0 +1,19 @@
+{
+  "name": "opencode-turn-brief-plugin",
+  "version": "0.1.0",
+  "description": "A model-written brief for each OpenCode turn",
+  "type": "module",
+  "exports": {
+    "./tui": "./tui.tsx"
+  },
+  "files": [
+    "tui.tsx",
+    "README.md"
+  ],
+  "peerDependencies": {
+    "@opencode/plugin": ">=2.3.0",
+    "@opentui/core": ">=0.8.4",
+    "@opentui/solid": ">=0.8.4",
+    "solid-js": ">=1.9.0"
+  }
+}
