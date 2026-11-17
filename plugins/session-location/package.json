@@ -1,0 +1,19 @@
+{
+  "name": "opencode-session-location-plugin",
+  "version": "0.1.0",
+  "description": "Keep the working directory visible while an OpenCode turn runs",
+  "type": "module",
+  "exports": {
+    "./tui": "./tui.tsx"
+  },
+  "files": [
+    "tui.tsx",
+    "README.md"
+  ],
+  "peerDependencies": {
+    "@opencode/plugin": ">=2.3.0",
+    "@opentui/core": ">=0.8.4",
+    "@opentui/solid": ">=0.8.4",
+    "solid-js": ">=1.9.0"
+  }
+}
