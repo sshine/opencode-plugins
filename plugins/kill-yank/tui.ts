@@ -1,4 +1,4 @@
-import { Plugin } from "@opencode/plugin/tui"
+import { Plugin } from "@opencode/plugin/tui";
 import {
   TextareaRenderable,
   createClipboard,
@@ -6,7 +6,7 @@ import {
   createRendererClipboardAdapter,
   decodePasteBytes,
   type EditBufferRenderable,
-} from "@opentui/core"
+} from "@opentui/core";
 
 /**
  * Readline/Emacs-style kill + yank for the prompt and every other textarea.
@@ -25,18 +25,18 @@ export default Plugin.define({
     const clipboard = createClipboard({
       host: createHostClipboard(),
       terminal: createRendererClipboardAdapter(context.renderer),
-    })
+    });
 
-    let kill = ""
+    let kill = "";
 
     const focused = (): EditBufferRenderable | undefined => {
-      const editor = context.renderer.currentFocusedEditor
-      return editor instanceof TextareaRenderable ? editor : undefined
-    }
+      const editor = context.renderer.currentFocusedEditor;
+      return editor instanceof TextareaRenderable ? editor : undefined;
+    };
 
     const remember = (text: string) => {
-      if (!text) return
-      kill = text
+      if (!text) return;
+      kill = text;
       void clipboard
         .writeText(text.replaceAll("\0", ""), {
           destination: "all-available",
@@ -44,65 +44,75 @@ export default Plugin.define({
         })
         .catch(() => {
           // The in-process kill buffer still works if no clipboard is available.
-        })
-    }
+        });
+    };
 
     const killToStart = (editor: EditBufferRenderable) => {
       if (editor.getSelection()) {
-        remember(editor.getSelectedText())
-        editor.deleteChar()
-        return
+        remember(editor.getSelectedText());
+        editor.deleteChar();
+        return;
       }
 
-      const cursor = editor.editorView.getCursor()
+      const cursor = editor.editorView.getCursor();
       remember(
         cursor.col > 0
           ? editor.getTextRangeByCoords(cursor.row, 0, cursor.row, cursor.col)
           : cursor.row > 0
             ? "\n"
             : "",
-      )
-      editor.deleteToLineStart()
-    }
+      );
+      editor.deleteToLineStart();
+    };
 
     const killToEnd = (editor: EditBufferRenderable) => {
       if (editor.getSelection()) {
-        remember(editor.getSelectedText())
-        editor.deleteChar()
-        return
+        remember(editor.getSelectedText());
+        editor.deleteChar();
+        return;
       }
 
-      const cursor = editor.editorView.getCursor()
-      const eol = editor.editBuffer.getEOL()
+      const cursor = editor.editorView.getCursor();
+      const eol = editor.editBuffer.getEOL();
       remember(
         eol.row === cursor.row && eol.col > cursor.col
-          ? editor.getTextRangeByCoords(cursor.row, cursor.col, eol.row, eol.col)
+          ? editor.getTextRangeByCoords(
+              cursor.row,
+              cursor.col,
+              eol.row,
+              eol.col,
+            )
           : "",
-      )
-      editor.deleteToLineEnd()
-    }
+      );
+      editor.deleteToLineEnd();
+    };
 
     const yank = async (editor: EditBufferRenderable) => {
-      let text = kill
+      let text = kill;
 
       if (!text) {
         const result = await clipboard.read({
           preferredTypes: ["text/plain"],
           selection: "clipboard",
-        })
-        if (result.status === "read" && result.representation.mimeType === "text/plain") {
-          text = decodePasteBytes(result.representation.bytes)
+        });
+        if (
+          result.status === "read" &&
+          result.representation.mimeType === "text/plain"
+        ) {
+          text = decodePasteBytes(result.representation.bytes);
         }
       }
 
-      if (!text) return
-      editor.insertText(text)
-    }
+      if (!text) return;
+      editor.insertText(text);
+    };
 
+    // Deliberately not scoped with `target: () => context.renderer.currentFocusedEditor`:
+    // on OpenCode 2.3.0 that layer never dispatches. The `enabled` guard on each
+    // command already keeps them inert while no textarea is focused.
     context.keymap.layer(() => ({
       mode: "global",
       priority: 10,
-      target: () => context.renderer.currentFocusedEditor,
       commands: [
         {
           id: "local.emacs.kill-to-line-start",
@@ -110,11 +120,11 @@ export default Plugin.define({
           bind: "ctrl+u",
           enabled: () => focused() !== undefined,
           run: (_input, event) => {
-            const editor = focused()
-            if (!editor) return false
-            event?.preventDefault()
-            event?.stopPropagation()
-            killToStart(editor)
+            const editor = focused();
+            if (!editor) return false;
+            event?.preventDefault();
+            event?.stopPropagation();
+            killToStart(editor);
           },
         },
         {
@@ -123,11 +133,11 @@ export default Plugin.define({
           bind: "ctrl+k",
           enabled: () => focused() !== undefined,
           run: (_input, event) => {
-            const editor = focused()
-            if (!editor) return false
-            event?.preventDefault()
-            event?.stopPropagation()
-            killToEnd(editor)
+            const editor = focused();
+            if (!editor) return false;
+            event?.preventDefault();
+            event?.stopPropagation();
+            killToEnd(editor);
           },
         },
         {
@@ -136,18 +146,18 @@ export default Plugin.define({
           bind: "ctrl+y",
           enabled: () => focused() !== undefined,
           run: async (_input, event) => {
-            const editor = focused()
-            if (!editor) return
-            event?.preventDefault()
-            event?.stopPropagation()
-            await yank(editor)
+            const editor = focused();
+            if (!editor) return;
+            event?.preventDefault();
+            event?.stopPropagation();
+            await yank(editor);
           },
         },
       ],
-    }))
+    }));
 
     return () => {
-      void clipboard.dispose()
-    }
+      void clipboard.dispose();
+    };
   },
-})
+});

@@ -1,0 +1,17 @@
+{
+  "name": "opencode-kill-yank-plugin",
+  "version": "0.1.0",
+  "description": "Emacs/readline-style kill and yank for OpenCode's TUI",
+  "type": "module",
+  "exports": {
+    "./tui": "./tui.ts"
+  },
+  "files": [
+    "tui.ts",
+    "README.md"
+  ],
+  "peerDependencies": {
+    "@opencode/plugin": ">=2.3.0",
+    "@opentui/core": ">=0.8.4"
+  }
+}
