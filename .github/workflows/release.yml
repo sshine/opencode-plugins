@@ -45,7 +45,9 @@ jobs:
           JS
 
       - name: Pack the release tarball
-        run: npm pack --pack-destination artifacts
+        run: |
+          mkdir -p artifacts
+          npm pack --pack-destination artifacts
 
       # The registry pin records this exact digest. It is printed before the
       # publish so it is available even if the publish step fails.
