@@ -1,0 +1,40 @@
+{
+  "name": "@nemlig/opencode-cut-paste-plugin",
+  "version": "0.1.0",
+  "description": "Emacs/readline-style kill and yank (cut/paste) for the OpenCode TUI.",
+  "type": "module",
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nemlig/ai.opencode-cut-paste-plugin.git"
+  },
+  "engines": {
+    "bun": ">=1.3.14"
+  },
+  "packageManager": "bun@1.3.14",
+  "main": "./tui.ts",
+  "exports": {
+    ".": "./tui.ts",
+    "./tui": "./tui.ts"
+  },
+  "files": [
+    "tui.ts",
+    "README.md"
+  ],
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "restricted"
+  },
+  "peerDependencies": {
+    "@opencode/plugin": ">=2.2.0",
+    "@opentui/core": ">=0.7.0"
+  },
+  "peerDependenciesMeta": {
+    "@opencode/plugin": {
+      "optional": true
+    },
+    "@opentui/core": {
+      "optional": true
+    }
+  }
+}

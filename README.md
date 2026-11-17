@@ -1,4 +1,4 @@
-# opencode-kill-yank-plugin
+# @nemlig/opencode-cut-paste-plugin
 
 Emacs/readline-style kill and yank for [OpenCode](https://opencode.ai/)'s TUI.
 
@@ -16,17 +16,39 @@ The bindings apply to every OpenUI textarea in the TUI, not only the prompt.
 
 ## Install
 
-Clone the repository into OpenCode's global plugin directory:
+Install the published package as a TUI plugin:
+
+```sh
+opencode plugin add @nemlig/opencode-cut-paste-plugin
+```
+
+The package is published to GitHub Packages, so `~/.npmrc` needs the `@nemlig`
+scope wired up and a `read:packages` token:
+
+```sh
+echo '@nemlig:registry=https://npm.pkg.github.com' >> ~/.npmrc
+```
+
+Add the plugin to `~/.config/opencode/cli.json` so it stays active against
+remote servers:
+
+```json
+{
+  "plugins": ["@nemlig/opencode-cut-paste-plugin"]
+}
+```
+
+No build step or `bun install` is required: the package ships `tui.ts` as-is.
+
+### From a checkout
 
 ```sh
 mkdir -p ~/.config/opencode/plugins
-git clone git@github.com:sshine/opencode-kill-yank-plugin.git \
-  ~/.config/opencode/plugins/kill-yank-plugin
+git clone git@github.com:nemlig/ai.opencode-cut-paste-plugin.git \
+  ~/.config/opencode/plugins/cut-paste-plugin
 ```
 
-Restart OpenCode. No build step or `bun install` is required.
-
-To uninstall, remove `~/.config/opencode/plugins/kill-yank-plugin` and restart OpenCode.
+Restart OpenCode. To uninstall, remove the directory and restart.
 
 ## Compatibility
 

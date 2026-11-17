@@ -1,0 +1,81 @@
+name: Release
+
+# Publish the plugin to GitHub Packages on a v*.*.* tag.
+#
+# The Overpass registry pins a sha256 of the published tarball, so the bytes must
+# be reproducible and observable. This workflow therefore packs once, publishes
+# that exact file (npm never re-packs an explicit tarball argument), and prints
+# the digest to the job summary. Copy that digest into registry.toml.
+#
+# Publishing is CI-only: a local `npm publish` needs a write:packages token, and
+# the package is little more than tui.ts, so there is no build step.
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    name: Publish GitHub Package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          registry-url: https://npm.pkg.github.com
+          scope: "@nemlig"
+
+      - name: Verify tag matches package version
+        run: |
+          node - <<'JS'
+          const version = require("./package.json").version;
+          const expected = `v${version}`;
+          if (process.env.GITHUB_REF_NAME !== expected) {
+            throw new Error(`Tag ${process.env.GITHUB_REF_NAME} does not match package version ${expected}`);
+          }
+          JS
+
+      - name: Pack the release tarball
+        run: npm pack --pack-destination artifacts
+
+      # The registry pin records this exact digest. It is printed before the
+      # publish so it is available even if the publish step fails.
+      - name: Record tarball digest
+        run: |
+          cd artifacts
+          sha256sum -- *.tgz | tee SHA256SUMS
+          {
+            echo "### Published tarball"
+            echo ""
+            echo '```'
+            cat SHA256SUMS
+            echo '```'
+            echo ""
+            echo "Pin it with:"
+            echo ""
+            echo '```'
+            echo "just pin @nemlig/opencode-cut-paste-plugin@$(node -p 'require("../package.json").version') \"\$TARBALL\""
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: npm-package
+          path: |
+            artifacts/*.tgz
+            artifacts/SHA256SUMS
+          if-no-files-found: error
+
+      - name: Publish
+        run: npm publish artifacts/*.tgz --ignore-scripts
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
