@@ -78,6 +78,30 @@ jobs:
           if-no-files-found: error
 
       - name: Publish
-        run: npm publish artifacts/*.tgz --ignore-scripts
+        # An explicit tarball argument uploads these exact bytes; npm does not
+        # re-pack. The leading "./" keeps npm from parsing the path as a git spec.
+        run: npm publish ./artifacts/*.tgz --ignore-scripts
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify the published bytes match the pin
+        # The registry pin records a sha256 of the bytes npm serves, so read the
+        # artifact back from GitHub Packages and compare. This catches any
+        # repacking between `npm pack` and `npm publish`.
+        run: |
+          set -euo pipefail
+          version=$(node -p 'require("./package.json").version')
+          url=$(npm view "@nemlig/opencode-cut-paste-plugin@${version}" dist.tarball)
+          echo "published at: $url"
+          curl --fail --silent --show-error --location \
+            --header "Authorization: Bearer $NODE_AUTH_TOKEN" \
+            --output published.tgz "$url"
+          expected=$(cut -d' ' -f1 artifacts/SHA256SUMS)
+          actual=$(sha256sum published.tgz | cut -d' ' -f1)
+          if [ "$expected" != "$actual" ]; then
+            echo "::error::Published tarball digest $actual does not match the packed digest $expected"
+            exit 1
+          fi
+          echo "Pinned digest confirmed: $actual"
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
