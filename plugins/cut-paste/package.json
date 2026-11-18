@@ -1,7 +1,7 @@
 {
-  "name": "opencode-kill-yank-plugin",
+  "name": "opencode-cut-paste-plugin",
   "version": "0.1.0",
-  "description": "Emacs/readline-style kill and yank for OpenCode's TUI",
+  "description": "Cut and paste for OpenCode's TUI",
   "type": "module",
   "exports": {
     "./tui": "./tui.ts"

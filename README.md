@@ -5,7 +5,7 @@ directory per plugin under [`plugins/`](plugins/), everything else is tooling.
 
 | Plugin                                         | What it does                                                   |
 | ---------------------------------------------- | -------------------------------------------------------------- |
-| [`kill-yank`](plugins/kill-yank)               | Emacs/readline-style `ctrl+u` / `ctrl+k` / `ctrl+y` in the TUI |
+| [`cut-paste`](plugins/cut-paste)               | Cut and paste with `ctrl+u` / `ctrl+k` / `ctrl+y` in the TUI   |
 | [`turn-timer`](plugins/turn-timer)             | A live timer for the current turn, plus how long it took       |
 | [`turn-brief`](plugins/turn-brief)             | A model-written brief for each completed turn                  |
 | [`session-location`](plugins/session-location) | Keeps the working directory visible while a turn runs          |
@@ -17,8 +17,8 @@ directory per plugin under [`plugins/`](plugins/), everything else is tooling.
 ### From a checkout
 
 ```sh
-git clone git@github.com:sshine/opencode-plugins.git
-cd opencode-plugins
+git clone git@github.com:nemlig/ai.opencode-small-plugins.git
+cd ai.opencode-small-plugins
 ./scripts/link-plugins.sh # or: just link
 ```
 

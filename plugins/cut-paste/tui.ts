@@ -9,53 +9,53 @@ import {
 } from "@opentui/core";
 
 /**
- * Readline/Emacs-style kill + yank for the prompt and every other textarea.
+ * Cut and paste for the prompt and every other textarea.
  *
- * ctrl+u  kill from the cursor to the start of the line (or kill the selection)
- * ctrl+k  kill from the cursor to the end of the line (or kill the selection)
- * ctrl+y  yank the last killed text
+ * ctrl+u  cut from the cursor to the start of the line (or cut the selection)
+ * ctrl+k  cut from the cursor to the end of the line (or cut the selection)
+ * ctrl+y  paste the last cut text
  *
- * Killed text is also written to the system clipboard and to the terminal via
- * OSC 52. Yank prefers the in-process kill buffer so it still works instantly
+ * Cut text is also written to the system clipboard and to the terminal via
+ * OSC 52. Paste prefers the in-process cut buffer so it still works instantly
  * when the system clipboard is unavailable (for example over SSH).
  */
 export default Plugin.define({
-  id: "local.emacs-kill-yank",
+  id: "local.cut-paste",
   setup(context) {
     const clipboard = createClipboard({
       host: createHostClipboard(),
       terminal: createRendererClipboardAdapter(context.renderer),
     });
 
-    let kill = "";
+    let cut = "";
 
     const focused = (): EditBufferRenderable | undefined => {
       const editor = context.renderer.currentFocusedEditor;
       return editor instanceof TextareaRenderable ? editor : undefined;
     };
 
-    const remember = (text: string) => {
+    const rememberCut = (text: string) => {
       if (!text) return;
-      kill = text;
+      cut = text;
       void clipboard
         .writeText(text.replaceAll("\0", ""), {
           destination: "all-available",
           selection: "clipboard",
         })
         .catch(() => {
-          // The in-process kill buffer still works if no clipboard is available.
+          // The in-process cut buffer still works if no clipboard is available.
         });
     };
 
-    const killToStart = (editor: EditBufferRenderable) => {
+    const cutToLineStart = (editor: EditBufferRenderable) => {
       if (editor.getSelection()) {
-        remember(editor.getSelectedText());
+        rememberCut(editor.getSelectedText());
         editor.deleteChar();
         return;
       }
 
       const cursor = editor.editorView.getCursor();
-      remember(
+      rememberCut(
         cursor.col > 0
           ? editor.getTextRangeByCoords(cursor.row, 0, cursor.row, cursor.col)
           : cursor.row > 0
@@ -65,16 +65,16 @@ export default Plugin.define({
       editor.deleteToLineStart();
     };
 
-    const killToEnd = (editor: EditBufferRenderable) => {
+    const cutToLineEnd = (editor: EditBufferRenderable) => {
       if (editor.getSelection()) {
-        remember(editor.getSelectedText());
+        rememberCut(editor.getSelectedText());
         editor.deleteChar();
         return;
       }
 
       const cursor = editor.editorView.getCursor();
       const eol = editor.editBuffer.getEOL();
-      remember(
+      rememberCut(
         eol.row === cursor.row && eol.col > cursor.col
           ? editor.getTextRangeByCoords(
               cursor.row,
@@ -87,8 +87,8 @@ export default Plugin.define({
       editor.deleteToLineEnd();
     };
 
-    const yank = async (editor: EditBufferRenderable) => {
-      let text = kill;
+    const paste = async (editor: EditBufferRenderable) => {
+      let text = cut;
 
       if (!text) {
         const result = await clipboard.read({
@@ -115,8 +115,8 @@ export default Plugin.define({
       priority: 10,
       commands: [
         {
-          id: "local.emacs.kill-to-line-start",
-          title: "Kill to start of line",
+          id: "local.cut-paste.cut-to-line-start",
+          title: "Cut to start of line",
           bind: "ctrl+u",
           enabled: () => focused() !== undefined,
           run: (_input, event) => {
@@ -124,12 +124,12 @@ export default Plugin.define({
             if (!editor) return false;
             event?.preventDefault();
             event?.stopPropagation();
-            killToStart(editor);
+            cutToLineStart(editor);
           },
         },
         {
-          id: "local.emacs.kill-to-line-end",
-          title: "Kill to end of line",
+          id: "local.cut-paste.cut-to-line-end",
+          title: "Cut to end of line",
           bind: "ctrl+k",
           enabled: () => focused() !== undefined,
           run: (_input, event) => {
@@ -137,12 +137,12 @@ export default Plugin.define({
             if (!editor) return false;
             event?.preventDefault();
             event?.stopPropagation();
-            killToEnd(editor);
+            cutToLineEnd(editor);
           },
         },
         {
-          id: "local.emacs.yank",
-          title: "Yank",
+          id: "local.cut-paste.paste",
+          title: "Paste",
           bind: "ctrl+y",
           enabled: () => focused() !== undefined,
           run: async (_input, event) => {
@@ -150,7 +150,7 @@ export default Plugin.define({
             if (!editor) return;
             event?.preventDefault();
             event?.stopPropagation();
-            await yank(editor);
+            await paste(editor);
           },
         },
       ],
