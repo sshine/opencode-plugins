@@ -1,7 +1,12 @@
 {
-  "name": "opencode-spinner-blips-plugin",
+  "name": "@nemlig/opencode-spinner-blips-plugin",
   "version": "0.1.0",
   "description": "A red Knight Rider spinner that sweeps three times each way",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nemlig/ai.opencode-small-plugins.git",
+    "directory": "plugins/spinner-blips"
+  },
   "type": "module",
   "exports": {
     "./tui": "./tui.tsx"

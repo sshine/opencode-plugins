@@ -1,7 +1,12 @@
 {
-  "name": "opencode-session-location-plugin",
+  "name": "@nemlig/opencode-session-location-plugin",
   "version": "0.1.0",
   "description": "Keep the working directory visible while an OpenCode turn runs",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nemlig/ai.opencode-small-plugins.git",
+    "directory": "plugins/session-location"
+  },
   "type": "module",
   "exports": {
     "./tui": "./tui.tsx"

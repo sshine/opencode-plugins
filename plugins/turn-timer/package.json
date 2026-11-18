@@ -1,7 +1,12 @@
 {
-  "name": "opencode-turn-timer-plugin",
+  "name": "@nemlig/opencode-turn-timer-plugin",
   "version": "0.1.0",
   "description": "A live turn timer for OpenCode's TUI",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nemlig/ai.opencode-small-plugins.git",
+    "directory": "plugins/turn-timer"
+  },
   "type": "module",
   "exports": {
     "./tui": "./tui.tsx"
