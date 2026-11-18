@@ -22,14 +22,15 @@ fmt:
 fmt-check:
     treefmt --fail-on-change --no-cache
 
-# Run dead-code lints over the Nix sources
+# Lint the Nix sources (deadnix) and the TypeScript sources (oxlint)
 lint:
     deadnix --fail .
+    oxlint --deny-warnings plugins
 
 # Evaluate the flake and run its checks
 check:
     nix flake check
 
 # Run all CI checks locally
-ci: fmt-check lint check
+ci: fmt-check lint typecheck check
     @echo "All CI checks passed!"

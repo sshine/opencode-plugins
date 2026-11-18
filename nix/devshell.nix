@@ -1,5 +1,5 @@
-# The dev shell: bun for typechecking, the formatter wrapper, hk with its generated
-# config baked in, and the two commands the README tells people to run.
+# The dev shell: bun for typechecking, the formatter wrapper, the linters, hk with
+# its generated config baked in, and the commands the README tells people to run.
 { inputs, ... }:
 {
   imports = [ inputs.devshell.flakeModule ];
@@ -16,6 +16,7 @@
           pkgs.deadnix
           pkgs.git
           pkgs.just
+          pkgs.oxlint
         ];
 
         # `bun install` writes node_modules from the committed lock file; keep the

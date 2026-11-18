@@ -50,7 +50,8 @@ A declarative setup can point a home-manager or hjem file at the same package:
   inputs.opencode-plugins.packages.${pkgs.stdenv.hostPlatform.system}.turn-timer;
 ```
 
-The flake also provides `nix develop` (bun, just, treefmt, hk) and `nix fmt`.
+The flake also provides `nix develop` (bun, just, treefmt, deadnix, oxlint, hk)
+and `nix fmt`.
 
 ### Eventually: `opencode plugin add`
 
@@ -78,11 +79,12 @@ shortest path.
 ## Development
 
 ```sh
-nix develop     # bun, just, treefmt, hk
+nix develop     # bun, just, treefmt, deadnix, oxlint, hk
 just typecheck  # tsc over every plugin
+just lint       # deadnix over Nix, oxlint over TypeScript
 just fmt        # treefmt: nixfmt, prettier, shfmt
 just check      # nix flake check
-just ci         # what CI should run
+just ci         # fmt-check, lint, typecheck and check
 ```
 
 The Nix side is a [dendritic flake](https://github.com/vic/import-tree): every
