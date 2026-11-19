@@ -8,6 +8,7 @@ directory per plugin under [`plugins/`](plugins/), everything else is tooling.
 | [`cut-paste`](plugins/cut-paste)               | Cut and paste with `ctrl+u` / `ctrl+k` / `ctrl+y` in the TUI   |
 | [`turn-timer`](plugins/turn-timer)             | A live timer for the current turn, plus how long it took       |
 | [`turn-brief`](plugins/turn-brief)             | A model-written brief for each completed turn                  |
+| [`terminal-title`](plugins/terminal-title)     | A rolling whole-session summary in the terminal title          |
 | [`session-location`](plugins/session-location) | Keeps the working directory visible while a turn runs          |
 | [`session-activity`](plugins/session-activity) | The running turn's current action in the composer's model line |
 | [`spinner-blips`](plugins/spinner-blips)       | A red Knight Rider blip that sweeps three times each way       |
@@ -30,9 +31,11 @@ like any local plugin, and `/reload` picks up edits without a build step.
 Remove the links again with `./scripts/link-plugins.sh --remove` (or `just
 unlink`).
 
-`turn-brief` makes a model call and therefore needs a model configured before it
-does anything; see [its README](plugins/turn-brief#configure-a-model). Linking it
-without one is harmless: it warns once and makes no calls.
+`turn-brief` and `terminal-title` make a model call and therefore need a model
+configured before they do anything; see
+[turn-brief's README](plugins/turn-brief#configure-a-model) and
+[terminal-title's README](plugins/terminal-title#configure-a-model). Linking
+either without one is harmless: each warns once and makes no calls.
 
 ### From Nix
 
