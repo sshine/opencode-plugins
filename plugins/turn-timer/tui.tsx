@@ -5,8 +5,7 @@ import { Plugin } from "@opencode/plugin/tui";
  *
  * A turn begins with `session.execution.started` and ends with `succeeded`,
  * `failed` or `interrupted`. While it runs, the prompt footer counts up; when it
- * ends, the timer stops, the footer keeps the final duration as `⏱ ...`, and a
- * toast reports it.
+ * ends, the timer stops and the footer keeps the final duration as `⏱ ...`.
  *
  * State lives in `storage.memory`, which is reactive and survives plugin hot
  * reloads, so `/reload` in the middle of a turn does not restart the clock.
@@ -45,7 +44,6 @@ const duration = (milliseconds: number) => {
 export default Plugin.define({
   id: "local.turn-timer",
   setup(context) {
-    const notify = context.options.notify !== false;
     const [state, update] = context.storage.memory<State>("turn-timer", {
       initial: { now: Date.now(), turns: [] },
     });
@@ -115,8 +113,7 @@ export default Plugin.define({
             : "interrupted";
 
       const { sessionID } = details.data;
-      const turn = running(sessionID);
-      if (!turn) return;
+      if (!running(sessionID)) return;
 
       const endedAt = Date.now();
       update((draft) => {
@@ -131,23 +128,6 @@ export default Plugin.define({
         draft.now = endedAt;
       });
       if (!anyRunning()) stopTicker();
-
-      if (!notify) return;
-      const took = duration(endedAt - turn.startedAt);
-      context.ui.toast.show({
-        title: "Turn timer",
-        message:
-          outcome === "succeeded"
-            ? `Turn took ${took}`
-            : `Turn ${outcome} after ${took}`,
-        variant:
-          outcome === "succeeded"
-            ? "success"
-            : outcome === "failed"
-              ? "error"
-              : "info",
-        sessionID,
-      });
     });
 
     // Memory survives a reload, so a turn that is still running when this plugin
