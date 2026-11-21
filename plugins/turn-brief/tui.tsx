@@ -16,9 +16,11 @@ import {
  * OpenCode's stateless `generate.text` endpoint, and the answer is appended to
  * the transcript as a wrapping text node, with a composer slot as fallback.
  *
- * No model is configured by default. Without `options.model` (or
- * `OPENCODE_TURN_BRIEF_MODEL`) the plugin makes no calls, so adding it to the
- * plugin directory does not silently spend money on every turn.
+ * The model is the one OpenCode already keeps for short background work:
+ * `small_model` from `opencode.json(c)`, which the server exposes as the hidden
+ * `title` agent's model. `options.model` (or `OPENCODE_TURN_BRIEF_MODEL`)
+ * overrides it, `"default"` uses the session's default model instead, and
+ * `"none"` turns the plugin off.
  */
 
 type Outcome = "succeeded" | "failed" | "interrupted";
@@ -48,6 +50,15 @@ type Generate = {
   ): Promise<{ text: string }>;
 };
 
+type ConfigDocument = {
+  info?: {
+    small_model?: unknown;
+    agents?: Record<string, { model?: unknown } | undefined>;
+  };
+};
+
+type Selection = Model | "default" | undefined;
+
 const DEFAULT_INSTRUCTION = [
   "You write the brief for a completed coding turn in OpenCode.",
   "Reply in the past tense, in plain prose: one or two sentences, with no Markdown, no quotation marks and no trailing period.",
@@ -71,9 +82,13 @@ const parseModel = (value: unknown, variant: unknown): Model | undefined => {
       providerID?: unknown;
       id?: unknown;
       modelID?: unknown;
+      model?: unknown;
     };
     const providerID = optionString(model.providerID);
-    const id = optionString(model.id) ?? optionString(model.modelID);
+    const id =
+      optionString(model.id) ??
+      optionString(model.modelID) ??
+      optionString(model.model);
     if (providerID && id)
       return {
         providerID,
@@ -177,10 +192,10 @@ export default Plugin.define({
   setup(context) {
     const options = context.options;
     const envVars = env();
-    const model = parseModel(
-      options.model ?? envVars.OPENCODE_TURN_BRIEF_MODEL,
-      options.variant,
-    );
+    const configuredModel = options.model ?? envVars.OPENCODE_TURN_BRIEF_MODEL;
+    const overrideModel = parseModel(configuredModel, options.variant);
+    const useDefaultModel = configuredModel === "default";
+    const disabled = configuredModel === "none";
     const instruction = optionString(options.prompt) ?? DEFAULT_INSTRUCTION;
     const maxChars =
       typeof options.maxChars === "number" ? options.maxChars : 400;
@@ -198,8 +213,54 @@ export default Plugin.define({
     const client = context.client as unknown as {
       generate?: Generate;
       experimental?: { generate?: Generate };
+      config?: { get(): Promise<ConfigDocument[]> };
+      agent?: {
+        list(): Promise<{
+          data?: { id?: string; model?: unknown }[];
+        }>;
+      };
     };
     const generate = client.experimental?.generate ?? client.generate;
+
+    // OpenCode resolves the global `small_model` into the hidden `title` agent,
+    // so read that instead of keeping a second model setting in cli.json. The
+    // config is fetched once per plugin load; a config save reloads plugins.
+    let smallModel: Promise<Model | undefined> | undefined;
+    const resolveSmallModel = () => {
+      smallModel ??= (async () => {
+        try {
+          const documents = (await client.config?.get()) ?? [];
+          // Later documents override earlier ones.
+          for (const document of [...documents].reverse()) {
+            const info = document.info;
+            if (!info) continue;
+            const resolved =
+              parseModel(info.small_model, options.variant) ??
+              parseModel(info.agents?.title?.model, options.variant);
+            if (resolved) return resolved;
+          }
+        } catch {}
+
+        // Older config documents do not expose the derived title agent; ask the
+        // server for its resolved agents instead.
+        try {
+          const agents = await client.agent?.list();
+          const title = agents?.data?.find((agent) => agent.id === "title");
+          const resolved = parseModel(title?.model, options.variant);
+          if (resolved) return resolved;
+        } catch {}
+
+        return undefined;
+      })();
+      return smallModel;
+    };
+
+    const selectedModel = async (): Promise<Selection> => {
+      if (disabled) return undefined;
+      if (overrideModel) return overrideModel;
+      if (useDefaultModel) return "default";
+      return resolveSmallModel();
+    };
 
     const find = (sessionID: string) =>
       state.entries.findLast((entry) => entry.sessionID === sessionID);
@@ -369,12 +430,34 @@ export default Plugin.define({
     // newer turn cannot be annotated by an older, slower summary.
     const requests = new Map<string, { id: number; abort: AbortController }>();
     let sequence = 0;
+    let stop: (() => void) | undefined;
+
+    // A failed setup never returns its disposer, and `context.data.listen` is
+    // not owned by the host's activation cleanup. A generation that throws
+    // after subscribing would therefore outlive its replacement, keep painting
+    // the shared memory store and leave one more `Brief:` under the footer for
+    // every failed reload. Tear the activation down on both outcomes.
+    const dispose = () => {
+      stop?.();
+      stop = undefined;
+      detach();
+      for (const timer of timers) clearTimeout(timer);
+      timers.clear();
+      for (const request of requests.values()) request.abort.abort();
+      requests.clear();
+    };
 
     const summarize = async (sessionID: string, outcome: Outcome) => {
+      if (disabled) return;
       if (!generate) {
         put(sessionID, { pending: false, error: "generate.text unavailable" });
         return;
       }
+
+      const selection = await selectedModel();
+      // Without an explicit model and without small_model there is nothing to
+      // spend money on; the setup toast already explained how to configure one.
+      if (!selection) return;
 
       await context.data.session.message.sync(sessionID);
       const transcript = transcriptOf(
@@ -404,7 +487,10 @@ export default Plugin.define({
         ].join("\n");
 
         const result = await generate.text(
-          { prompt, model },
+          {
+            prompt,
+            model: selection === "default" ? undefined : selection,
+          },
           { signal: abort.signal },
         );
         if (requests.get(sessionID)?.id !== id) return;
@@ -423,7 +509,7 @@ export default Plugin.define({
       }
     };
 
-    const stop = context.data.listen(({ details }) => {
+    stop = context.data.listen(({ details }) => {
       if (details.type === "session.viewed") {
         paintLater();
         return;
@@ -469,66 +555,66 @@ export default Plugin.define({
       });
     });
 
-    if (
-      !model &&
-      options.model !== "default" &&
-      envVars.OPENCODE_TURN_BRIEF_MODEL !== "default"
-    ) {
-      context.ui.toast.show({
-        title: "Turn brief",
-        message:
-          "No model configured. Set options.model to provider/model in cli.json.",
-        variant: "warning",
+    try {
+      if (!disabled && !overrideModel && !useDefaultModel) {
+        void resolveSmallModel().then((resolved) => {
+          if (resolved) return;
+          context.ui.toast.show({
+            title: "Turn brief",
+            message:
+              "No model configured. Set small_model in opencode.json, or options.model in cli.json.",
+            variant: "warning",
+          });
+        });
+      }
+
+      context.ui.slot({
+        append: "session.composer.top",
+        render: ({ sessionID }) => {
+          if (state.attached) return null;
+
+          const entry = find(sessionID);
+          if (!entry) return null;
+
+          if (entry.pending)
+            return (
+              <box paddingLeft={2}>
+                <text fg={context.theme.text.faint} wrapMode="word">
+                  <b>Brief:</b> summarizing…
+                </text>
+              </box>
+            );
+
+          if (entry.error)
+            return (
+              <box paddingLeft={2}>
+                <text
+                  fg={context.theme.text.feedback.error.base}
+                  wrapMode="word"
+                >
+                  <b>Brief:</b> unavailable: {entry.error}
+                </text>
+              </box>
+            );
+
+          if (!entry.text) return null;
+
+          return (
+            <box paddingLeft={2}>
+              <text fg={context.theme.text.muted} wrapMode="word">
+                <b>Brief:</b> {entry.text}
+              </text>
+            </box>
+          );
+        },
       });
+
+      paintLater();
+    } catch (error) {
+      dispose();
+      throw error;
     }
 
-    context.ui.slot({
-      append: "session.composer.top",
-      render: ({ sessionID }) => {
-        if (state.attached) return null;
-
-        const entry = find(sessionID);
-        if (!entry) return null;
-
-        if (entry.pending)
-          return (
-            <box paddingLeft={2}>
-              <text fg={context.theme.text.faint} wrapMode="word">
-                <b>Brief:</b> summarizing…
-              </text>
-            </box>
-          );
-
-        if (entry.error)
-          return (
-            <box paddingLeft={2}>
-              <text fg={context.theme.text.feedback.error.base} wrapMode="word">
-                <b>Brief:</b> unavailable: {entry.error}
-              </text>
-            </box>
-          );
-
-        if (!entry.text) return null;
-
-        return (
-          <box paddingLeft={2}>
-            <text fg={context.theme.text.muted} wrapMode="word">
-              <b>Brief:</b> {entry.text}
-            </text>
-          </box>
-        );
-      },
-    });
-
-    paintLater();
-
-    return () => {
-      stop();
-      detach();
-      for (const timer of timers) clearTimeout(timer);
-      timers.clear();
-      for (const request of requests.values()) request.abort.abort();
-      requests.clear();
-    };
+    return dispose;
   },
 });

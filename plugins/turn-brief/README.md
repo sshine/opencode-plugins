@@ -14,7 +14,7 @@ against nixosConfigurations.t14
 `Brief:` is bold; the rest is in the muted transcript colour.
 
 - When a turn succeeds, fails or is interrupted, the turn's messages are sent
-  to the model you configure, and the answer replaces the previous brief.
+  to the brief model, and the answer replaces the previous brief.
 - While the summary is being written, it reads `Brief: summarizing…`.
 - The brief is kept per session, so concurrent tabs do not overwrite each other.
 - The brief is removed when the next turn starts, and placed back when that
@@ -29,20 +29,32 @@ plugin falls back to the `session.composer.top` slot, which is above the prompt
 instead of under the footer. Set `placement: "composer"` to use that supported
 slot deliberately.
 
-## Configure a model
+## Model
 
-The plugin makes a model call, so it deliberately does nothing until you name a
-model. There is no default, to avoid spending money on every turn by accident.
-Configure a small, fast model through `cli.json`:
+The brief uses the model OpenCode already keeps for short background work:
+`small_model` in `opencode.json(c)`. OpenCode exposes that setting as the hidden
+`title` agent's model, so the plugin reads the resolved configuration instead of
+asking you to name the same model twice.
 
 ```jsonc
+// ~/.config/opencode/opencode.jsonc
+{
+  "$schema": "https://opencode.ai/config.json",
+  "small_model": "opencode-go/claude-haiku-5-5",
+}
+```
+
+Set `model` in the plugin options only to override that choice:
+
+```jsonc
+// ~/.config/opencode/cli.json
 {
   "$schema": "https://opencode.ai/v2/cli.json",
   "plugins": [
     {
       "package": "/home/me/opencode-plugins/plugins/turn-brief",
       "options": {
-        "model": "opencode-go/claude-haiku-5-5",
+        "model": "opencode-go/claude-sonnet-5",
       },
     },
   ],
@@ -50,9 +62,11 @@ Configure a small, fast model through `cli.json`:
 ```
 
 `model` is `providerID/modelID`, matching the IDs that `opencode models` lists.
-`model: "default"` lets OpenCode pick the default model instead, and an
-`OPENCODE_TURN_BRIEF_MODEL` environment variable works as a fallback when the
-plugin is discovered from `~/.config/opencode/plugins/` without options.
+`model: "default"` uses the session's default model instead, and
+`model: "none"` turns the plugin off. `OPENCODE_TURN_BRIEF_MODEL` works as an
+override when the plugin is discovered from `~/.config/opencode/plugins/`
+without options. Without a `small_model` and without an override, the plugin
+makes no calls and shows a warning instead of spending money on every turn.
 
 The call goes through OpenCode's stateless `generate.text` endpoint, so it uses
 the providers and credentials already configured for OpenCode. It is resolved
@@ -61,21 +75,21 @@ is created and nothing is added to your conversation.
 
 ## Options
 
-| Option               | Default      | Meaning                                                       |
-| -------------------- | ------------ | ------------------------------------------------------------- |
-| `model`              | none         | `providerID/modelID`, or `"default"`                          |
-| `variant`            | none         | Model variant to request                                      |
-| `prompt`             | built in     | Instruction sent before the transcript                        |
-| `maxChars`           | `400`        | Soft character limit; `0` disables it                         |
-| `maxTranscriptChars` | `12000`      | Transcript budget; the middle is dropped when it is longer    |
-| `timeout`            | `30000`      | Milliseconds before the request is aborted                    |
-| `subagents`          | `false`      | Also summarize child-session turns                            |
-| `placement`          | `transcript` | `transcript` under the footer, or `composer` above the prompt |
+| Option               | Default       | Meaning                                                       |
+| -------------------- | ------------- | ------------------------------------------------------------- |
+| `model`              | `small_model` | `providerID/modelID`, `"default"`, or `"none"`                |
+| `variant`            | none          | Model variant to request                                      |
+| `prompt`             | built in      | Instruction sent before the transcript                        |
+| `maxChars`           | `400`         | Soft character limit; `0` disables it                         |
+| `maxTranscriptChars` | `12000`       | Transcript budget; the middle is dropped when it is longer    |
+| `timeout`            | `30000`       | Milliseconds before the request is aborted                    |
+| `subagents`          | `false`       | Also summarize child-session turns                            |
+| `placement`          | `transcript`  | `transcript` under the footer, or `composer` above the prompt |
 
 ## Privacy
 
 The user prompt for the turn, the assistant's text, and the inputs of tool calls
-(for example commands and file paths) are sent to the model you configure. Set
+(for example commands and file paths) are sent to the brief model. Set
 `maxTranscriptChars` lower if that is too much; the built-in instruction keeps
 the answer short, but the input is the whole turn.
 
