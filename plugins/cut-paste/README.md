@@ -17,12 +17,12 @@ The bindings apply to every OpenUI textarea in the TUI, not only the prompt.
 ## Install
 
 Clone the
-[plugin repository](https://github.com/nemlig/ai.opencode-small-plugins) and
+[plugin repository](https://github.com/sshine/opencode-plugins) and
 link this directory into OpenCode's global plugin directory:
 
 ```sh
-git clone git@github.com:nemlig/ai.opencode-small-plugins.git
-cd ai.opencode-small-plugins
+git clone git@github.com:sshine/opencode-plugins.git
+cd opencode-plugins
 ./scripts/link-plugins.sh
 ```
 

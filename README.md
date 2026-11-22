@@ -26,8 +26,8 @@ Agents:
 ### From a checkout
 
 ```sh
-git clone git@github.com:nemlig/ai.opencode-small-plugins.git
-cd ai.opencode-small-plugins
+git clone git@github.com:sshine/opencode-plugins.git
+cd opencode-plugins
 ./scripts/link-plugins.sh # or: just link-plugins
 ./scripts/link-agents.sh  # or: just link-agents
 ```

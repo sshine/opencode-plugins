@@ -1,12 +1,7 @@
 {
-  "name": "@nemlig/opencode-terminal-title-plugin",
+  "name": "opencode-terminal-title-plugin",
   "version": "0.1.0",
   "description": "A rolling session summary in the terminal title",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/nemlig/ai.opencode-small-plugins.git",
-    "directory": "plugins/terminal-title"
-  },
   "type": "module",
   "exports": {
     "./tui": "./tui.tsx"
