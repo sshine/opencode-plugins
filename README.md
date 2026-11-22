@@ -49,7 +49,7 @@ Remove the links again with
 OpenCode V2 can install a plugin from an npm or Git package specifier:
 
 ```sh
-opencode plugin add @nemlig/opencode-turn-timer-plugin
+opencode plugin add opencode-turn-timer-plugin
 ```
 
 That also records the plugin in the global config and keeps it updated. It needs one published npm

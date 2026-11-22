@@ -1,12 +1,7 @@
 {
-  "name": "@nemlig/opencode-turn-brief-plugin",
+  "name": "opencode-turn-brief-plugin",
   "version": "0.1.0",
   "description": "A model-written brief for each OpenCode turn",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/nemlig/ai.opencode-small-plugins.git",
-    "directory": "plugins/turn-brief"
-  },
   "type": "module",
   "exports": {
     "./tui": "./tui.tsx"

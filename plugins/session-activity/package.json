@@ -1,12 +1,7 @@
 {
-  "name": "@nemlig/opencode-session-activity-plugin",
+  "name": "opencode-session-activity-plugin",
   "version": "0.1.0",
   "description": "A live turn-activity line that highlights what OpenCode is doing now",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/nemlig/ai.opencode-small-plugins.git",
-    "directory": "plugins/session-activity"
-  },
   "type": "module",
   "exports": {
     "./tui": "./tui.tsx"

@@ -1,12 +1,7 @@
 {
-  "name": "@nemlig/opencode-cut-paste-plugin",
-  "version": "0.1.1",
+  "name": "opencode-cut-paste-plugin",
+  "version": "0.1.0",
   "description": "Cut and paste for OpenCode's TUI",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/nemlig/ai.opencode-small-plugins.git",
-    "directory": "plugins/cut-paste"
-  },
   "type": "module",
   "exports": {
     "./tui": "./tui.ts"
