@@ -3,12 +3,20 @@ default:
     @just --list
 
 # Link every plugin in this checkout into OpenCode's global plugin directory
-link:
+link-plugins:
     ./scripts/link-plugins.sh
 
-# Remove the links created by `just link`
-unlink:
+# Remove the links created by `just link-plugins`
+unlink-plugins:
     ./scripts/link-plugins.sh --remove
+
+# Link every agent in this checkout into OpenCode's global agents directory
+link-agents:
+    ./scripts/link-agents.sh
+
+# Remove the links created by `just link-agents`
+unlink-agents:
+    ./scripts/link-agents.sh --remove
 
 # Typecheck the plugins against the OpenCode plugin API
 typecheck:
