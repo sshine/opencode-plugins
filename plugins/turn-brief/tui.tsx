@@ -10,11 +10,14 @@ import {
 } from "@opentui/core";
 
 /**
- * A brief for each completed turn, shown below the assistant footer.
+ * A brief for each completed turn, shown below the assistant footer, plus a
+ * `/brief` command that summarizes the whole session on demand.
  *
  * When a turn ends, the turn's messages are sent to a small, fast model through
  * OpenCode's stateless `generate.text` endpoint, and the answer is appended to
  * the transcript as a wrapping text node, with a composer slot as fallback.
+ * `/brief` uses the same endpoint and request path with a transcript of every
+ * message in the session, which is useful after resuming an old session.
  *
  * The model is the one OpenCode already keeps for short background work:
  * `small_model` from `opencode.json(c)`, which the server exposes as the hidden
@@ -31,11 +34,14 @@ type Model = {
   variant?: string;
 };
 
+type BriefKind = "turn" | "session";
+
 type Entry = {
   sessionID: string;
   text?: string;
   pending?: boolean;
   error?: string;
+  kind?: BriefKind;
 };
 
 type State = {
@@ -64,6 +70,13 @@ const DEFAULT_INSTRUCTION = [
   "Reply in the past tense, in plain prose: one or two sentences, with no Markdown, no quotation marks and no trailing period.",
   "Say what was accomplished and mention a file or command only when it was the point of the turn.",
   "If the turn failed or was interrupted, say that.",
+].join(" ");
+
+const DEFAULT_SESSION_INSTRUCTION = [
+  "You write a brief overview of an entire OpenCode session.",
+  "Reply in the past tense, in plain prose: one short paragraph, with no Markdown, no quotation marks and no trailing period.",
+  "Cover what the user set out to do, what was accomplished, the main decisions, and anything still open or broken.",
+  "Mention a file or command only when it was the point of the work.",
 ].join(" ");
 
 const env = () => {
@@ -155,6 +168,16 @@ const toolLine = (
   return `TOOL ${part.name}(${fields.join(", ")})${status}`;
 };
 
+const truncate = (text: string, max: number, headShare: number) => {
+  if (text.length <= max) return text;
+
+  // Keep the request and the end of the work; the middle is what a summary can
+  // afford to lose when the transcript was enormous.
+  const head = Math.floor(max * headShare);
+  const tail = max - head - 24;
+  return `${text.slice(0, head)}\n\n... (truncated) ...\n\n${text.slice(-tail)}`;
+};
+
 const transcriptOf = (messages: SessionMessageInfo[], max: number) => {
   const start = messages.findLastIndex((message) => message.type === "user");
   if (start === -1) return "";
@@ -177,14 +200,41 @@ const transcriptOf = (messages: SessionMessageInfo[], max: number) => {
       blocks.push(`ERROR: ${shorten(message.error.message, 300)}`);
   }
 
-  const text = blocks.join("\n\n");
-  if (text.length <= max) return text;
+  return truncate(blocks.join("\n\n"), max, 0.4);
+};
 
-  // Keep the request and the end of the turn; the middle is what a summary can
-  // afford to lose when a turn was enormous.
-  const head = Math.floor(max * 0.4);
-  const tail = max - head - 24;
-  return `${text.slice(0, head)}\n\n... (truncated) ...\n\n${text.slice(-tail)}`;
+const sessionTranscriptOf = (messages: SessionMessageInfo[], max: number) => {
+  const blocks: string[] = [];
+  for (const message of messages) {
+    if (message.type === "user") {
+      blocks.push(`USER:\n${shorten(message.text, 1200)}`);
+      continue;
+    }
+    if (message.type !== "assistant") continue;
+
+    // Across a whole session, user prompts and assistant prose carry the arc.
+    // Tool calls are reduced to a count and the names involved, with failures
+    // named because they usually explain what is still open.
+    const tools = message.content.filter((part) => part.type === "tool");
+    for (const part of message.content)
+      if (part.type === "text" && part.text.trim())
+        blocks.push(`ASSISTANT:\n${shorten(part.text, 900)}`);
+
+    if (tools.length > 0) {
+      const names = [...new Set(tools.map((part) => part.name))];
+      const failures = tools.filter((part) => part.state.status === "error");
+      const failed = failures.length
+        ? `; failed: ${[...new Set(failures.map((part) => part.name))].join(", ")}`
+        : "";
+      blocks.push(
+        `TOOLS: ${tools.length} call${tools.length === 1 ? "" : "s"} (${names.join(", ")})${failed}`,
+      );
+    }
+    if (message.error)
+      blocks.push(`ERROR: ${shorten(message.error.message, 300)}`);
+  }
+
+  return truncate(blocks.join("\n\n"), max, 0.5);
 };
 
 export default Plugin.define({
@@ -197,12 +247,22 @@ export default Plugin.define({
     const useDefaultModel = configuredModel === "default";
     const disabled = configuredModel === "none";
     const instruction = optionString(options.prompt) ?? DEFAULT_INSTRUCTION;
+    const sessionInstruction =
+      optionString(options.sessionPrompt) ?? DEFAULT_SESSION_INSTRUCTION;
     const maxChars =
       typeof options.maxChars === "number" ? options.maxChars : 400;
+    const sessionMaxChars =
+      typeof options.sessionMaxChars === "number"
+        ? options.sessionMaxChars
+        : 500;
     const maxTranscript =
       typeof options.maxTranscriptChars === "number"
         ? options.maxTranscriptChars
         : 12000;
+    const maxSessionTranscript =
+      typeof options.maxSessionTranscriptChars === "number"
+        ? options.maxSessionTranscriptChars
+        : 24000;
     const timeout =
       typeof options.timeout === "number" ? options.timeout : 30_000;
 
@@ -406,16 +466,18 @@ export default Plugin.define({
         return;
       }
 
+      const label = entry.kind === "session" ? "Session brief:" : "Brief:";
+
       node.box.visible = true;
       place();
       if (entry.pending) {
-        node.text.content = t`${bold("Brief:")} summarizing…`;
+        node.text.content = t`${bold(label)} summarizing…`;
         node.text.fg = context.theme.text.faint;
       } else if (entry.error) {
-        node.text.content = t`${bold("Brief:")} unavailable: ${entry.error}`;
+        node.text.content = t`${bold(label)} unavailable: ${entry.error}`;
         node.text.fg = context.theme.text.feedback.error.base;
       } else {
-        node.text.content = t`${bold("Brief:")} ${entry.text ?? ""}`;
+        node.text.content = t`${bold(label)} ${entry.text ?? ""}`;
         node.text.fg = context.theme.text.muted;
       }
     };
@@ -447,16 +509,59 @@ export default Plugin.define({
       requests.clear();
     };
 
-    const summarize = async (sessionID: string, outcome: Outcome) => {
-      if (disabled) return;
+    const requestBrief = async (
+      sessionID: string,
+      prompt: string,
+      max: number,
+      kind: BriefKind,
+      selection: Selection,
+    ) => {
       if (!generate) {
-        put(sessionID, { pending: false, error: "generate.text unavailable" });
+        put(sessionID, {
+          pending: false,
+          error: "generate.text unavailable",
+          kind,
+        });
         return;
       }
 
-      const selection = await selectedModel();
+      const id = ++sequence;
+      requests.get(sessionID)?.abort.abort();
+      const abort = new AbortController();
+      requests.set(sessionID, { id, abort });
+      put(sessionID, { pending: true, error: undefined, kind });
+
+      const timer = setTimeout(() => abort.abort(), timeout);
+      try {
+        const result = await generate.text(
+          {
+            prompt,
+            model: selection === "default" ? undefined : selection,
+          },
+          { signal: abort.signal },
+        );
+        if (requests.get(sessionID)?.id !== id) return;
+
+        const brief = briefText(result.text, max);
+        if (brief)
+          put(sessionID, { text: brief, pending: false, error: undefined });
+        else put(sessionID, { pending: false, error: "empty summary" });
+      } catch (error) {
+        if (requests.get(sessionID)?.id !== id) return;
+        const message = error instanceof Error ? error.message : String(error);
+        put(sessionID, { pending: false, error: briefText(message, 80) });
+      } finally {
+        clearTimeout(timer);
+        if (requests.get(sessionID)?.id === id) requests.delete(sessionID);
+      }
+    };
+
+    const summarize = async (sessionID: string, outcome: Outcome) => {
+      if (disabled) return;
+
       // Without an explicit model and without small_model there is nothing to
       // spend money on; the setup toast already explained how to configure one.
+      const selection = await selectedModel();
       if (!selection) return;
 
       await context.data.session.message.sync(sessionID);
@@ -469,44 +574,64 @@ export default Plugin.define({
         return;
       }
 
-      const id = ++sequence;
-      requests.get(sessionID)?.abort.abort();
-      const abort = new AbortController();
-      requests.set(sessionID, { id, abort });
-      put(sessionID, { pending: true, error: undefined });
+      const prompt = [
+        instruction,
+        ...(maxChars > 0 ? [`At most ${maxChars} characters.`] : []),
+        `The turn ended as: ${outcome}.`,
+        "",
+        "Turn transcript:",
+        transcript,
+      ].join("\n");
 
-      const timer = setTimeout(() => abort.abort(), timeout);
-      try {
-        const prompt = [
-          instruction,
-          ...(maxChars > 0 ? [`At most ${maxChars} characters.`] : []),
-          `The turn ended as: ${outcome}.`,
-          "",
-          "Turn transcript:",
-          transcript,
-        ].join("\n");
+      await requestBrief(sessionID, prompt, maxChars, "turn", selection);
+    };
 
-        const result = await generate.text(
-          {
-            prompt,
-            model: selection === "default" ? undefined : selection,
-          },
-          { signal: abort.signal },
-        );
-        if (requests.get(sessionID)?.id !== id) return;
+    const summarizeSession = async (sessionID: string, focus?: string) => {
+      if (disabled) return;
 
-        const brief = briefText(result.text, maxChars);
-        if (brief)
-          put(sessionID, { text: brief, pending: false, error: undefined });
-        else put(sessionID, { pending: false, error: "empty summary" });
-      } catch (error) {
-        if (requests.get(sessionID)?.id !== id) return;
-        const message = error instanceof Error ? error.message : String(error);
-        put(sessionID, { pending: false, error: briefText(message, 80) });
-      } finally {
-        clearTimeout(timer);
-        if (requests.get(sessionID)?.id === id) requests.delete(sessionID);
+      const selection = await selectedModel();
+      if (!selection) {
+        context.ui.toast.show({
+          title: "Session brief",
+          message:
+            "No model configured. Set small_model in opencode.json, or options.model in cli.json.",
+          variant: "warning",
+        });
+        return;
       }
+
+      await context.data.session.message.sync(sessionID);
+      const transcript = sessionTranscriptOf(
+        context.data.session.message.list(sessionID),
+        maxSessionTranscript,
+      );
+      if (!transcript) {
+        put(sessionID, {
+          pending: false,
+          error: "no messages to summarize",
+          kind: "session",
+        });
+        return;
+      }
+
+      const prompt = [
+        sessionInstruction,
+        ...(sessionMaxChars > 0
+          ? [`At most ${sessionMaxChars} characters.`]
+          : []),
+        ...(focus ? [`The user asked you to focus on: ${focus}`] : []),
+        "",
+        "Session transcript:",
+        transcript,
+      ].join("\n");
+
+      await requestBrief(
+        sessionID,
+        prompt,
+        sessionMaxChars,
+        "session",
+        selection,
+      );
     };
 
     stop = context.data.listen(({ details }) => {
@@ -576,11 +701,13 @@ export default Plugin.define({
           const entry = find(sessionID);
           if (!entry) return null;
 
+          const label = entry.kind === "session" ? "Session brief:" : "Brief:";
+
           if (entry.pending)
             return (
               <box paddingLeft={2}>
                 <text fg={context.theme.text.faint} wrapMode="word">
-                  <b>Brief:</b> summarizing…
+                  <b>{label}</b> summarizing…
                 </text>
               </box>
             );
@@ -592,7 +719,7 @@ export default Plugin.define({
                   fg={context.theme.text.feedback.error.base}
                   wrapMode="word"
                 >
-                  <b>Brief:</b> unavailable: {entry.error}
+                  <b>{label}</b> unavailable: {entry.error}
                 </text>
               </box>
             );
@@ -602,12 +729,53 @@ export default Plugin.define({
           return (
             <box paddingLeft={2}>
               <text fg={context.theme.text.muted} wrapMode="word">
-                <b>Brief:</b> {entry.text}
+                <b>{label}</b> {entry.text}
               </text>
             </box>
           );
         },
       });
+
+      context.keymap.layer(() => ({
+        mode: "global",
+        commands: [
+          {
+            id: "turn-brief.session",
+            title: "Brief the whole session",
+            description:
+              "Summarize everything in the session so far with the brief model",
+            group: "Turn brief",
+            palette: true,
+            slash: { name: "brief", arguments: true },
+            enabled: () => !disabled && activeSession() !== undefined,
+            run: async (input) => {
+              const sessionID = activeSession();
+              if (!sessionID) {
+                context.ui.toast.show({
+                  title: "Session brief",
+                  message: "Open a session first.",
+                  variant: "warning",
+                });
+                return;
+              }
+
+              const focus = typeof input === "string" ? input.trim() : "";
+              try {
+                await summarizeSession(sessionID, focus || undefined);
+              } catch (error) {
+                put(sessionID, {
+                  pending: false,
+                  kind: "session",
+                  error: briefText(
+                    error instanceof Error ? error.message : String(error),
+                    80,
+                  ),
+                });
+              }
+            },
+          },
+        ],
+      }));
 
       paintLater();
     } catch (error) {

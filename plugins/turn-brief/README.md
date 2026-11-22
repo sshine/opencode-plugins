@@ -13,12 +13,21 @@ against nixosConfigurations.t14
 
 `Brief:` is bold; the rest is in the muted transcript colour.
 
+Run `/brief` when a whole session is more useful than the last turn, for example
+after resuming an old session. It sends a compact transcript of the entire
+session instead, labels the result `Session brief:`, and accepts an optional
+focus such as `/brief the failing tests`. The brief is held in memory like a
+turn brief, so a resume or restart starts without one and `/brief` is how you
+ask for it again.
+
 - When a turn succeeds, fails or is interrupted, the turn's messages are sent
   to the brief model, and the answer replaces the previous brief.
-- While the summary is being written, it reads `Brief: summarizing…`.
+- While the summary is being written, it reads `Brief: summarizing…`, or
+  `Session brief: summarizing…` for `/brief`.
 - The brief is kept per session, so concurrent tabs do not overwrite each other.
-- The brief is removed when the next turn starts, and placed back when that
-  turn ends.
+- A turn brief is removed when the next turn starts, and placed back when that
+  turn ends. A session brief stays until the next turn starts or another brief
+  replaces it.
 - Subagent turns are skipped by default; they show up in the parent transcript
   as tool calls.
 
@@ -75,30 +84,38 @@ is created and nothing is added to your conversation.
 
 ## Options
 
-| Option               | Default       | Meaning                                                       |
-| -------------------- | ------------- | ------------------------------------------------------------- |
-| `model`              | `small_model` | `providerID/modelID`, `"default"`, or `"none"`                |
-| `variant`            | none          | Model variant to request                                      |
-| `prompt`             | built in      | Instruction sent before the transcript                        |
-| `maxChars`           | `400`         | Soft character limit; `0` disables it                         |
-| `maxTranscriptChars` | `12000`       | Transcript budget; the middle is dropped when it is longer    |
-| `timeout`            | `30000`       | Milliseconds before the request is aborted                    |
-| `subagents`          | `false`       | Also summarize child-session turns                            |
-| `placement`          | `transcript`  | `transcript` under the footer, or `composer` above the prompt |
+| Option                      | Default       | Meaning                                                       |
+| --------------------------- | ------------- | ------------------------------------------------------------- |
+| `model`                     | `small_model` | `providerID/modelID`, `"default"`, or `"none"`                |
+| `variant`                   | none          | Model variant to request                                      |
+| `prompt`                    | built in      | Instruction for a turn brief                                  |
+| `sessionPrompt`             | built in      | Instruction for a `/brief` session summary                    |
+| `maxChars`                  | `400`         | Soft turn-brief limit; `0` disables it                        |
+| `sessionMaxChars`           | `500`         | Soft `/brief` limit; `0` disables it                          |
+| `maxTranscriptChars`        | `12000`       | Turn transcript budget; the middle is dropped when longer     |
+| `maxSessionTranscriptChars` | `24000`       | Session transcript budget; the middle is dropped when longer  |
+| `timeout`                   | `30000`       | Milliseconds before the request is aborted                    |
+| `subagents`                 | `false`       | Also summarize child-session turns                            |
+| `placement`                 | `transcript`  | `transcript` under the footer, or `composer` above the prompt |
 
 ## Privacy
 
 The user prompt for the turn, the assistant's text, and the inputs of tool calls
-(for example commands and file paths) are sent to the brief model. Set
-`maxTranscriptChars` lower if that is too much; the built-in instruction keeps
-the answer short, but the input is the whole turn.
+(for example commands and file paths) are sent to the brief model. A `/brief`
+request sends a compressed transcript of the whole session: every user prompt,
+the assistant's prose, and a count and names of the tools used, with failed
+tools called out. Set `maxTranscriptChars` or `maxSessionTranscriptChars` lower
+if that is too much; the built-in instructions keep the answers short, but the
+input is the turn or the session.
 
 ## How it is built
 
 The plugin subscribes to `session.execution.succeeded`, `.failed` and
 `.interrupted`, syncs the session's messages, builds a compact transcript from
 the last user message onward, and calls `context.client.generate.text`. The
+`/brief` slash command uses the same request path with a transcript from the
+start of the session and a tool-call summary instead of every tool input. The
 result is painted into a plugin text node appended to the session scrollbox, or
 into the `session.composer.top` slot when the scrollbox is unavailable or
-`placement` is `composer`. Requests are aborted when a newer turn starts or the
-plugin unloads, so a slow model cannot overwrite a fresher brief.
+`placement` is `composer`. Requests are aborted when a newer request starts or
+the plugin unloads, so a slow model cannot overwrite a fresher brief.
